@@ -1,6 +1,8 @@
 import cv2
 import face_recognition
 import pickle
+import csv
+from datetime import datetime
 
 # Load Haar Cascade
 face_cascade = cv2.CascadeClassifier(
@@ -15,7 +17,46 @@ known_face_encodings = data["encodings"]
 known_face_names = data["names"]
 
 print("✅ Saved encodings loaded successfully!")
+# Function to mark attendance
+def mark_attendance(name):
 
+    file_name = "attendance.csv"
+
+    existing_names = []
+
+    try:
+        with open(file_name, "r", newline="") as file:
+
+            reader = csv.reader(file)
+
+            next(reader, None)
+
+            for row in reader:
+                existing_names.append(row[0])
+
+    except FileNotFoundError:
+
+        with open(file_name, "w", newline="") as file:
+
+            writer = csv.writer(file)
+
+            writer.writerow(["Name", "Date", "Time"])
+
+    # Prevent duplicate attendance
+    if name not in existing_names:
+
+        now = datetime.now()
+
+        date = now.strftime("%Y-%m-%d")
+        time = now.strftime("%H:%M:%S")
+
+        with open(file_name, "a", newline="") as file:
+
+            writer = csv.writer(file)
+
+            writer.writerow([name, date, time])
+
+        print(f"Attendance marked for {name}")
 # Start webcam
 cap = cv2.VideoCapture(0)
 
@@ -94,6 +135,8 @@ while True:
                 match_index = matches.index(True)
 
                 name = known_face_names[match_index]
+
+                mark_attendance(name)
 
         # Scale coordinates back to original frame size
         x1 = x * 2
