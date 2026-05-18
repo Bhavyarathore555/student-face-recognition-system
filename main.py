@@ -1,59 +1,60 @@
 import cv2
 import face_recognition
-import os
+import pickle
 
-# Load Haar Cascade Classifier
+# Load Haar Cascade
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 )
 
-# Store known face encodings and names
-known_face_encodings = []
-known_face_names = []
+# Load saved encodings
+with open("encodings.pkl", "rb") as file:
+    data = pickle.load(file)
 
-# Path to student images
-path = "students"
+known_face_encodings = data["encodings"]
+known_face_names = data["names"]
 
-# Load student images
-for filename in os.listdir(path):
-
-    image_path = os.path.join(path, filename)
-
-    # Load image
-    image = face_recognition.load_image_file(image_path)
-
-    # Generate face encodings
-    encodings = face_recognition.face_encodings(image)
-
-    # Skip image if no face found
-    if len(encodings) == 0:
-        print(f"No face found in {filename}")
-        continue
-
-    # Store first face encoding
-    known_face_encodings.append(encodings[0])
-
-    # Store student name without extension
-    name = os.path.splitext(filename)[0]
-    known_face_names.append(name)
-
-print("Student faces loaded successfully.")
+print("✅ Saved encodings loaded successfully!")
 
 # Start webcam
 cap = cv2.VideoCapture(0)
 
+# Frame counter
+frame_count = 0
+
 while True:
 
-    # Read webcam frame
+    # Read frame
     ret, frame = cap.read()
 
-    # If frame not captured properly
     if not ret:
-        print("Failed to capture frame")
+        print("❌ Failed to capture frame")
         break
 
-    # Convert frame to grayscale
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Increase frame count
+    frame_count += 1
+
+    # Skip frames for better performance
+    if frame_count % 10 != 0:
+
+        cv2.imshow("Student Identification System", frame)
+
+        # Quit when q is pressed
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+        continue
+
+    # Resize frame to improve speed
+    small_frame = cv2.resize(
+        frame,
+        (0, 0),
+        fx=0.5,
+        fy=0.5
+    )
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
 
     # Detect faces using Haar Cascade
     faces = face_cascade.detectMultiScale(
@@ -63,58 +64,64 @@ while True:
         minSize=(30, 30)
     )
 
-    # Convert frame to RGB for face_recognition
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # Convert to RGB
+    rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-    # Process detected faces
+    # Process each face
     for (x, y, w, h) in faces:
 
-        # Generate face encoding using detected coordinates
+        # Generate encoding
         face_encoding_list = face_recognition.face_encodings(
             rgb_frame,
             [(y, x + w, y + h, x)]
         )
+
         name = "Unknown"
 
-        # If encoding generated successfully
+        # If face encoding found
         if len(face_encoding_list) > 0:
 
             face_encoding = face_encoding_list[0]
 
-            # Compare with known student faces
+            # Compare with known encodings
             matches = face_recognition.compare_faces(
                 known_face_encodings,
                 face_encoding
             )
 
-            # If match found
             if True in matches:
 
                 match_index = matches.index(True)
 
                 name = known_face_names[match_index]
 
-        # Draw rectangle around face
+        # Scale coordinates back to original frame size
+        x1 = x * 2
+        y1 = y * 2
+        w1 = w * 2
+        h1 = h * 2
+
+        # Draw rectangle
         cv2.rectangle(
             frame,
-            (x, y),
-            (x + w, y + h),
+            (x1, y1),
+            (x1 + w1, y1 + h1),
             (0, 255, 0),
             2
         )
 
-        # Display student name
+        # Display name
         cv2.putText(
             frame,
             name,
-            (x, y - 10),
+            (x1, y1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
             (0, 255, 0),
             2
         )
 
-    # Display number of faces detected
+    # Display number of faces
     cv2.putText(
         frame,
         f'Faces Detected: {len(faces)}',
@@ -125,7 +132,7 @@ while True:
         2
     )
 
-    # Show webcam output
+    # Show webcam
     cv2.imshow("Student Identification System", frame)
 
     # Press q to quit
